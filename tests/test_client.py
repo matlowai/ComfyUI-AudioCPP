@@ -84,3 +84,11 @@ def test_non_wav_answer_is_an_error(fake):
 def test_unknown_endpoint_is_reported(fake):
     with pytest.raises(client.ServerError, match="404 \\(not_found\\)"):
         client.request(client.Server(fake.port, 10), "GET", "/nope")
+
+
+def test_local_server_refuses_a_port_it_did_not_start(fake, tmp_path):
+    from comfyui_audiocpp import local_server
+
+    with pytest.raises(client.AudioCPPError, match=f"port {fake.port} is already used"):
+        local_server.start("/models/x.gguf", fake.port, "0", "all on GPU", 0, str(tmp_path))
+    assert local_server._port_in_use(free_port()) is False

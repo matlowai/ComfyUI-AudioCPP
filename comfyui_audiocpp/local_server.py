@@ -8,11 +8,14 @@ asks for the same settings again gets the running one.
 from __future__ import annotations
 
 import atexit
+import ctypes
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
+import sys
 import time
 
 from . import client
@@ -55,6 +58,9 @@ def start(model_path: str, port: int, gpu: str, memory: str, idle_unload_ms: int
     if current and current[0].poll() is None and current[1] == cfg and current[2] == gpu:
         return
     stop(port)
+    if _port_in_use(port):
+        raise client.AudioCPPError(f"port {port} is already used by a program this ComfyUI did not start (another ComfyUI's server, or one "
+                                   f"left running): stop it, choose another port, or connect to it with the audio.cpp Server node")
     os.makedirs(workdir, exist_ok=True)
     cfg_path = os.path.join(workdir, f"server_{port}.json")
     log_path = os.path.join(workdir, f"server_{port}.log")
@@ -62,7 +68,8 @@ def start(model_path: str, port: int, gpu: str, memory: str, idle_unload_ms: int
         json.dump(cfg, f, indent=1)
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.Popen([executable(), "--config", cfg_path, "--no-ui", "--log"], stdout=log, stderr=subprocess.STDOUT,
-                                env=dict(os.environ, CUDA_DEVICE_ORDER="PCI_BUS_ID", CUDA_VISIBLE_DEVICES=gpu))  # indices as nvidia-smi numbers them
+                                env=dict(os.environ, CUDA_DEVICE_ORDER="PCI_BUS_ID", CUDA_VISIBLE_DEVICES=gpu),  # indices as nvidia-smi numbers them
+                                preexec_fn=_die_with_comfyui if sys.platform.startswith("linux") else None)
     _running[port] = (proc, cfg, gpu)
     server = client.Server(port, 5.0)
     deadline = time.monotonic() + wait
@@ -78,6 +85,20 @@ def start(model_path: str, port: int, gpu: str, memory: str, idle_unload_ms: int
             time.sleep(0.5)
     stop(port)
     raise client.AudioCPPError(f"audiocpp_server did not answer on port {port} within {wait:g} s; see {log_path}")
+
+
+def _port_in_use(port: int) -> bool:
+    try:
+        client.health(client.Server(port, 2.0))
+    except client.AudioCPPError as error:
+        return not isinstance(error.__cause__, ConnectionRefusedError)
+    return True
+
+
+def _die_with_comfyui():
+    """Linux: the server gets SIGTERM when the thread that started it ends (ComfyUI's prompt worker, alive as long as ComfyUI), also
+    when ComfyUI is killed and atexit never runs."""
+    ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
 
 
 def stop(port: int) -> bool:
