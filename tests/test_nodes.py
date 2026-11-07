@@ -102,3 +102,59 @@ def test_server_node_validates(nodes):
     assert server == client.Server(8080, 600.0)
     with pytest.raises(ValueError):
         nodes.AudioCPPServer.execute(0, 600.0)
+
+
+NEMO = {"id": "nemo-c", "object": "model", "family": "nemotron_transcribe", "task": "asr", "mode": "offline", "device": 0, "loaded": True,
+        "configured": True}
+
+
+def test_new_schema_ids(nodes):
+    for cls in (nodes.AudioCPPLocalServer, nodes.AudioCPPReferenceSpeakers, nodes.AudioCPPNemotronTranscribe, nodes.AudioCPPH3VoiceQA,
+                nodes.AudioCPPUnload):
+        assert cls.define_schema().node_id == cls.__name__
+
+
+def test_reference_speakers_need_one_name_per_clip(nodes):
+    clip = audio.wav_to_audio(make_wav(seconds=1.0, rate=24000))
+    refs, = result(nodes.AudioCPPReferenceSpeakers.execute("Maren\nBrann\n", {"audio0": clip, "audio1": clip, "audio2": None}))
+    assert [n for n, _ in refs] == ["Maren", "Brann"] and refs[0][1].shape == (16000,)
+    with pytest.raises(ValueError, match="1 name"):
+        nodes.AudioCPPReferenceSpeakers.execute("Maren", {"audio0": clip, "audio1": clip})
+
+
+def test_transcribe_names_speakers_and_qa_reads_the_details(nodes, fake):
+    fake.models.append(NEMO)
+    rate = 16000
+    # references: Maren 0-1 s, Brann 2-3 s; the take starts at 4 s
+    fake.task_result = {
+        "text": "<spk:0> ref <spk:1> ref <spk:0> its you",
+        "speaker_turns": [{"start_sample": 0, "end_sample": rate, "speaker_id": "speaker_0", "confidence": 0},
+                          {"start_sample": 2 * rate, "end_sample": 3 * rate, "speaker_id": "speaker_1", "confidence": 0},
+                          {"start_sample": int(4.5 * rate), "end_sample": 5 * rate, "speaker_id": "speaker_0", "confidence": 0}],
+        "custom_schema_output": {"schema": "nemotron_transcribe.result.v1", "data": {"words": [
+            {"word": "its", "display": "it's", "start": 4.5, "end": 4.7, "speaker_column": 0, "speaker_confidence": 0.99, "transcript_speaker_tag": "spk:0"},
+            {"word": "you", "display": "you", "start": 4.7, "end": 5.0, "speaker_column": 0, "speaker_confidence": 0.99, "transcript_speaker_tag": "spk:0"}]}}}
+    clip = audio.wav_to_audio(make_wav(seconds=1.0, rate=rate))
+    refs, = result(nodes.AudioCPPReferenceSpeakers.execute("Maren\nBrann", {"audio0": clip, "audio1": clip}))
+    text, details = result(nodes.AudioCPPNemotronTranscribe.execute(client.Server(fake.port, 10), "", clip, "en", "", speakers=refs))
+    assert text == "[Maren] it's you"
+    sent = fake.requests[-1][2]
+    assert sent["model"] == "nemo-c" and sent["request"]["options"] == {"diarization": True, "return_timestamps": True, "language": "en"}
+    assert len(base64.b64decode(sent["request"]["audio_base64"])) == 44 + 2 * 5 * rate
+    d = json.loads(details)
+    assert d["words"][0] == {"word": "it's", "start": 0.5, "end": 0.7, "speaker": "Maren", "speaker_column": 0, "speaker_confidence": 0.99,
+                             "transcript_speaker_tag": "spk:0"}
+    assert d["server_result"] == fake.task_result
+    prompt = "[Shot 1] Brann (S1) waits. Maren (S2) says: <d>[English] It's you.</d>"
+    summary, report = result(nodes.AudioCPPH3VoiceQA.execute(details, prompt, ""))
+    assert json.loads(report)["lines"][0]["verdict"] == "ok"
+    assert summary.splitlines()[1] == 'OK: shot 1 "It\'s you." expected Maren, heard Maren at 0.50-1.00 s'
+    summary, report = result(nodes.AudioCPPH3VoiceQA.execute(details, prompt, "S2: Brann"))
+    assert json.loads(report)["lines"][0]["verdict"] == "wrong_voice"
+
+
+def test_unload(nodes, fake):
+    report, = result(nodes.AudioCPPUnload.execute(client.Server(fake.port, 10), "", False))
+    assert report == 'unloaded: {"unloaded": ["asr-b"]}'
+    report, = result(nodes.AudioCPPUnload.execute(client.Server(fake.port, 10), "nope", True))
+    assert "not_found" in report and f"no server started by this ComfyUI on port {fake.port}" in report

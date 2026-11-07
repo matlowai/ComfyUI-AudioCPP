@@ -36,6 +36,8 @@ class ServerError(AudioCPPError):
 class Server:
     port: int
     timeout: float
+    # True when the server runs on the GPU this ComfyUI uses: ComfyUI's models are unloaded before a request loads a model there.
+    shares_comfy_gpu: bool = False
 
     def __post_init__(self):
         if not isinstance(self.port, int) or not 1 <= self.port <= 65535:
@@ -115,7 +117,7 @@ def _error(server: Server, status: int, headers: dict, data: bytes) -> AudioCPPE
         error = json.loads(data.decode("utf-8"))["error"]
         return ServerError(status, str(error.get("message", "")), str(error.get("type", "")))
     except (ValueError, KeyError, TypeError, AttributeError):
-        text = data[:500].decode("utf-8", "replace").strip()
+        text = data.decode("utf-8", "replace").strip()
         return ServerError(status, text or "(empty response)", "unknown")
 
 
@@ -143,3 +145,18 @@ def speech(server: Server, payload: dict, check_interrupt=None) -> tuple[bytes, 
     if not data.startswith(b"RIFF"):
         raise AudioCPPError(f"the server on {server.address} answered /v1/audio/speech with {headers.get('content-type')}, not a WAV file.")
     return data, headers
+
+
+def run_task(server: Server, payload: dict, check_interrupt=None) -> dict:
+    """POST /v1/tasks/run: the full result (text, words, speaker_turns, custom_schema_output, timing)."""
+    _, _, data = request(server, "POST", "/v1/tasks/run", payload, check_interrupt)
+    return json.loads(data.decode("utf-8"))
+
+
+def unload(server: Server, model_ids: list[str] | None = None, check_interrupt=None) -> dict:
+    """POST /v1/tasks/unload_models (the given ids) or /v1/tasks/unload_all_models (none given): {"unloaded": [...], ...}."""
+    if model_ids:
+        _, _, data = request(server, "POST", "/v1/tasks/unload_models", {"model_ids": model_ids}, check_interrupt)
+    else:
+        _, _, data = request(server, "POST", "/v1/tasks/unload_all_models", {}, check_interrupt)
+    return json.loads(data.decode("utf-8"))

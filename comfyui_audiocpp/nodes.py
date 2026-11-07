@@ -1,24 +1,33 @@
-"""ComfyUI nodes for audio.cpp: speech from an audiocpp_server that you start yourself on this computer."""
+"""ComfyUI nodes for audio.cpp: speech from an audiocpp_server on this computer, and Nemotron Transcribe (words, word times and
+speakers named from reference clips) with a check of MiniMax H3 takes against their prompts."""
 
 from __future__ import annotations
 
 import base64
 import json
 import logging
+import os
 
+import numpy as np
+import torch
 from comfy_api.latest import ComfyExtension, io, ui
 
-from . import audio, client
+import comfy.audio
+import comfy.model_management
+import folder_paths
+
+from . import audio, client, h3qa, local_server, speakers
 
 # Tasks whose models take text on POST /v1/audio/speech (task names as GET /v1/models reports them).
 SPEECH_TASKS = ("tts", "clon", "vdes")
 
 AudioCPPServerType = io.Custom("AUDIOCPP_SERVER")
+SpeakersType = io.Custom("AUDIOCPP_SPEAKERS")
+# The diarizer has 8 speaker columns (pee.diar.num_speakers); one stays free for a voice that matches no reference.
+MAX_REFERENCES = 7
 
 
 def _check_interrupt():
-    import comfy.model_management
-
     comfy.model_management.throw_exception_if_processing_interrupted()
 
 
@@ -189,9 +198,241 @@ def _only_speech_model(server: client.Server) -> str:
     return speaking[0]["id"]
 
 
+# The audio_encoders model folders, listing GGUF files (ComfyUI lists only its own weight formats there).
+GGUF_FOLDER = "audiocpp_gguf"
+folder_paths.folder_names_and_paths[GGUF_FOLDER] = (folder_paths.get_folder_paths("audio_encoders"), {".gguf"})
+
+
+def _gguf_models() -> list[str]:
+    """Decoder GGUFs in the audio_encoders model folders (the mmproj- encoder sibling is loaded by audio.cpp itself)."""
+    return [f for f in folder_paths.get_filename_list(GGUF_FOLDER) if not os.path.basename(f).startswith("mmproj-")]
+
+
+def _comfy_gpu() -> str | None:
+    """The GPU-<uuid> of the CUDA device ComfyUI computes on, or None when it does not use one."""
+    device = comfy.model_management.get_torch_device()
+    if device.type != "cuda":
+        return None
+    return f"GPU-{torch.cuda.get_device_properties(device).uuid}"
+
+
+class AudioCPPLocalServer(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioCPPLocalServer",
+            display_name="audio.cpp Local Server (Nemotron Transcribe)",
+            category="audio/audio.cpp",
+            description=("Starts an audiocpp_server on 127.0.0.1 for Nemotron 3.5 Transcribe, or keeps the one already running with these "
+                         "settings. The program is the AUDIOCPP_SERVER environment variable or audiocpp_server on PATH; see the README. "
+                         "On the GPU ComfyUI uses, ComfyUI's models are unloaded before each transcription."),
+            inputs=[
+                io.Combo.Input("model", options=_gguf_models(),
+                               tooltip="the decoder GGUF in models/audio_encoders; its mmproj-...-Encoder-F16.gguf must sit beside it"),
+                io.Int.Input("port", default=8090, min=1, max=65535),
+                io.String.Input("gpu", default="", tooltip="empty: the GPU ComfyUI uses; or a CUDA index or GPU-<uuid> from nvidia-smi -L"),
+                io.Combo.Input("memory", options=list(local_server.MEMORY), default="all on GPU",
+                               tooltip="all on GPU: ~22 GB VRAM (Q4_K_S). Experts in RAM: ~6.7 GB VRAM and ~17 GB of host RAM, about 3x slower"),
+                io.Int.Input("idle_unload_seconds", default=300, min=0, max=86400, tooltip="unload the model after this long unused; 0 keeps it loaded"),
+                io.Float.Input("timeout", default=600.0, min=1.0, max=86400.0, step=1.0,
+                               tooltip="seconds to wait for one answer; a first request also loads the model (about 15-20 s)"),
+            ],
+            outputs=[AudioCPPServerType.Output(display_name="server")],
+        )
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        return float("nan")  # the process can stop between runs
+
+    @classmethod
+    def execute(cls, model, port, gpu, memory, idle_unload_seconds, timeout) -> io.NodeOutput:
+        comfy_gpu = _comfy_gpu()
+        gpu = gpu.strip() or comfy_gpu
+        if gpu is None:
+            raise ValueError("ComfyUI does not run on a CUDA GPU here: set gpu to a CUDA index or GPU-<uuid> from nvidia-smi -L")
+        model_path = folder_paths.get_full_path_or_raise(GGUF_FOLDER, model)
+        local_server.start(model_path, port, gpu, memory, idle_unload_seconds * 1000, os.path.join(folder_paths.get_temp_directory(), "audiocpp"))
+        return io.NodeOutput(client.Server(port, float(timeout), shares_comfy_gpu=gpu == comfy_gpu))
+
+
+class AudioCPPReferenceSpeakers(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioCPPReferenceSpeakers",
+            display_name="audio.cpp Reference Speakers",
+            category="audio/audio.cpp",
+            description=("Named voice clips for Nemotron Transcribe: the clips are played to the model before the audio it checks, so its "
+                         "speakers get these names. A few seconds of clean speech per voice is enough."),
+            inputs=[
+                io.String.Input("names", multiline=True, default="", tooltip="one name per line, in the order of the audio inputs"),
+                io.Autogrow.Input("clips", template=io.Autogrow.TemplatePrefix(io.Audio.Input("audio"), prefix="audio", min=1, max=MAX_REFERENCES)),
+            ],
+            outputs=[SpeakersType.Output(display_name="speakers")],
+        )
+
+    @classmethod
+    def execute(cls, names, clips: io.Autogrow.Type) -> io.NodeOutput:
+        names = [n.strip() for n in names.splitlines() if n.strip()]
+        clips = [clips[k] for k in sorted(clips, key=lambda k: int(k.removeprefix("audio"))) if clips[k] is not None]
+        if len(names) != len(clips):
+            raise ValueError(f"names has {len(names)} name(s) for {len(clips)} audio clip(s): give one name per line, in the order of the clips")
+        if len(set(names)) != len(names):
+            raise ValueError(f"the names must differ: {names}")
+        return io.NodeOutput([(n, mono_16k(c)) for n, c in zip(names, clips)])
+
+
+def mono_16k(clip: dict) -> np.ndarray:
+    """The first clip of an AUDIO as 16 kHz mono float32, the rate Nemotron Transcribe runs at."""
+    wave = clip["waveform"][0].to(torch.float32).mean(0)
+    return comfy.audio.resample(wave, int(clip["sample_rate"]), speakers.RATE).cpu().numpy()
+
+
+def _wav_16k(samples: np.ndarray) -> bytes:
+    return audio.audio_to_wav({"waveform": torch.from_numpy(samples)[None, None], "sample_rate": speakers.RATE})
+
+
+def transcribe(server: client.Server, model: str, clip: dict, references, language: str, options: str) -> dict:
+    """Nemotron Transcribe with word times and speakers; with references, the speakers carry their names (see speakers.py)."""
+    take = mono_16k(clip)
+    combined, spans, start = speakers.combine(references or [], take)
+    request_options = {"diarization": True, "return_timestamps": True, **_options(options)}
+    if language.strip():
+        request_options["language"] = language.strip()
+    if server.shares_comfy_gpu:
+        comfy.model_management.unload_all_models()
+        comfy.model_management.soft_empty_cache()
+    result = client.run_task(server, {"model": model, "request": {"audio_base64": base64.b64encode(_wav_16k(combined)).decode("ascii"),
+                                                                  "options": request_options}}, _check_interrupt)
+    named = speakers.attribute(result, spans, start)
+    text, current = [], None
+    for w in named["words"]:
+        if w["speaker"] != current:
+            current = w["speaker"]
+            text.append(f"[{current}]")
+        text.append(w["word"])
+    return {"text": " ".join(text), "audio_seconds": round(len(take) / speakers.RATE, 3), **named,
+            "reference_layout": {"references": spans, "audio_start": start, "gap_seconds": speakers.GAP_SECONDS}, "server_result": result}
+
+
+class AudioCPPNemotronTranscribe(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioCPPNemotronTranscribe",
+            display_name="audio.cpp Nemotron Transcribe",
+            category="audio/audio.cpp",
+            description=("Words, word times and speakers of a recording with NVIDIA Nemotron 3.5 Transcribe (POST /v1/tasks/run). With "
+                         "Reference Speakers, speakers get the references' names; a voice no reference matches stays unassigned and a "
+                         "speaker the model heard in two references is reported as ambiguous, never guessed."),
+            inputs=[
+                AudioCPPServerType.Input("server"),
+                io.String.Input("model", default="", tooltip="the server's model id; empty: its only nemotron_transcribe model"),
+                io.Audio.Input("audio"),
+                SpeakersType.Input("speakers", optional=True),
+                io.String.Input("language", default="", tooltip="source-language hint such as en; empty: automatic"),
+                io.String.Input("options", multiline=True, default="", tooltip='more request options as a JSON object, e.g. {"repetition_guard": true}'),
+            ],
+            outputs=[io.String.Output(display_name="text"), io.String.Output(display_name="details",
+                                                                               tooltip="JSON: words, speaker_turns, speakers and the server's whole result")],
+        )
+
+    @classmethod
+    def execute(cls, server, model, audio, language, options, speakers=None) -> io.NodeOutput:
+        model = model.strip() or _only_model(server, "nemotron_transcribe")
+        details = transcribe(server, model, audio, speakers, language, options)
+        return io.NodeOutput(details["text"], json.dumps(details, ensure_ascii=False), ui=ui.PreviewText(details["text"]))
+
+
+def _only_model(server: client.Server, family: str) -> str:
+    models = client.models(server, _check_interrupt)
+    found = [m for m in models if m.get("family") == family]
+    if len(found) != 1:
+        raise ValueError(f"set the model input to one of the server's {family} models: {_model_list(found or models)}")
+    return found[0]["id"]
+
+
+class AudioCPPH3VoiceQA(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioCPPH3VoiceQA",
+            display_name="audio.cpp H3 Voice QA",
+            category="audio/audio.cpp",
+            description=("Checks a MiniMax H3 take against its prompt: for each <d>...</d> line, who said it and whether it started in its "
+                         "shot ([Shot N] At MM:SS.mmm). Also lists speech the prompt does not script, such as a voice reference copied into "
+                         "a silent shot. Voices need Nemotron Transcribe run with Reference Speakers; without them only the words and times are checked."),
+            inputs=[
+                io.String.Input("details", force_input=True),
+                io.String.Input("prompt", multiline=True, default="", tooltip="the H3 prompt the take was rendered from"),
+                io.String.Input("cast", multiline=True, default="",
+                                tooltip="speaker ids or audio labels to reference names, one per line, e.g. S1: Maren or Audio 2: Liesl; "
+                                        "not needed when the prompt names the speaker next to each line"),
+            ],
+            outputs=[io.String.Output(display_name="summary", tooltip="one line per scripted line and per unscripted stretch, for a person"),
+                     io.String.Output(display_name="report", tooltip="JSON: counts, every line with its verdict and words, unscripted speech")],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, details, prompt, cast) -> io.NodeOutput:
+        d = json.loads(details)
+        names = [s["name"] for s in d["speakers"]]
+        report = h3qa.check(prompt, d["words"], d["audio_seconds"], names, h3qa.parse_cast(cast))
+        summary = qa_text(report)
+        return io.NodeOutput(summary, json.dumps(report, ensure_ascii=False), ui=ui.PreviewText(summary))
+
+
+def qa_text(report: dict) -> str:
+    """The report as lines for a person: the counts, then each scripted line and each unscripted stretch."""
+    s = report["summary"]
+    lines = [", ".join(f"{k} {v}" for k, v in s.items())]
+    for r in report["lines"]:
+        when = f"{r['start']:.2f}-{r['end']:.2f} s" if "start" in r else "not heard"
+        window = r["shot_window"]
+        timing = f", wrong time ({r['drift_seconds']:+.2f} s outside shot {r['shot']}: {window[0]:.2f}-{window[1]:.2f} s)" if r.get("wrong_time") else ""
+        lines.append(f"{r['verdict'].upper()}: shot {r['shot']} \"{r['text']}\" expected {r['expected_speaker']}, "
+                     f"heard {r.get('detected_speaker')} at {when}{timing}")
+    for u in report["unscripted"]:
+        lines.append(f"UNSCRIPTED: \"{u['text']}\" by {u['speaker']} at {u['start']:.2f}-{u['end']:.2f} s")
+    return "\n".join(lines)
+
+
+class AudioCPPUnload(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioCPPUnload",
+            display_name="audio.cpp Unload",
+            category="audio/audio.cpp",
+            description=("Frees the server's model memory (POST /v1/tasks/unload_models or unload_all_models); the next request loads it "
+                         "again. Optionally stops a server that the Local Server node started."),
+            inputs=[
+                AudioCPPServerType.Input("server"),
+                io.String.Input("model", default="", tooltip="a model id; empty: every loaded model"),
+                io.Boolean.Input("stop_server", default=False, tooltip="also stop the audiocpp_server this ComfyUI started on that port"),
+            ],
+            outputs=[io.String.Output(display_name="report")],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        return float("nan")
+
+    @classmethod
+    def execute(cls, server, model, stop_server) -> io.NodeOutput:
+        unloaded = client.unload(server, [model.strip()] if model.strip() else None, _check_interrupt)
+        report = f"unloaded: {json.dumps(unloaded)}"
+        if stop_server:
+            report += "; server stopped" if local_server.stop(server.port) else f"; no server started by this ComfyUI on port {server.port}"
+        return io.NodeOutput(report, ui=ui.PreviewText(report))
+
+
 class AudioCPPExtension(ComfyExtension):
     async def get_node_list(self):
-        return [AudioCPPServer, AudioCPPDoctor, AudioCPPTextToSpeech]
+        return [AudioCPPServer, AudioCPPDoctor, AudioCPPTextToSpeech, AudioCPPLocalServer, AudioCPPReferenceSpeakers,
+                AudioCPPNemotronTranscribe, AudioCPPH3VoiceQA, AudioCPPUnload]
 
 
 async def comfy_entrypoint() -> AudioCPPExtension:

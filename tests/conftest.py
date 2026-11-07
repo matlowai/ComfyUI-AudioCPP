@@ -58,6 +58,7 @@ class FakeServer:
         self.delay = 0.0
         self.speech_status = 200
         self.speech_body = None
+        self.task_result = {"text": "", "timing": {"wall_ms": 1.0}}
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -86,7 +87,15 @@ class FakeServer:
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 fake.requests.append(("POST", self.path, body))
                 time.sleep(fake.delay)
-                if self.path != "/v1/audio/speech":
+                if self.path == "/v1/tasks/run":
+                    self.reply(200, json.dumps(fake.task_result).encode())
+                elif self.path == "/v1/tasks/unload_all_models":
+                    self.reply(200, json.dumps({"unloaded": [m["id"] for m in fake.models if m["loaded"]]}).encode())
+                elif self.path == "/v1/tasks/unload_models":
+                    ids = {m["id"] for m in fake.models}
+                    self.reply(200, json.dumps({"unloaded": [i for i in body["model_ids"] if i in ids],
+                                                "not_found": [i for i in body["model_ids"] if i not in ids]}).encode())
+                elif self.path != "/v1/audio/speech":
                     self.reply(404, b'{"error":{"message":"unknown endpoint","type":"not_found"}}')
                 elif fake.speech_body is not None:
                     self.reply(fake.speech_status, fake.speech_body, headers={"Location": "http://127.0.0.1:1/"} if 300 <= fake.speech_status < 400 else None)
