@@ -1,0 +1,760 @@
+{
+ "id": "6785d552-f407-4dc8-b22a-af7177620127",
+ "revision": 0,
+ "last_node_id": 10,
+ "last_link_id": 9,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "LoadAudio",
+   "pos": [
+    40,
+    40
+   ],
+   "size": [
+    282.798828125,
+    136
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "audio",
+     "name": "audio",
+     "type": "COMBO",
+     "widget": {
+      "name": "audio"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "audioUI",
+     "name": "audioUI",
+     "type": "AUDIO_UI",
+     "widget": {
+      "name": "audioUI"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "choose file to upload",
+     "name": "upload",
+     "type": "AUDIOUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "AUDIO",
+     "name": "AUDIO",
+     "type": "AUDIO",
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadAudio"
+   },
+   "widgets_values": [
+    "maren_voice_ref.wav",
+    ""
+   ],
+   "widgets_values_named": {
+    "audio": "maren_voice_ref.wav",
+    "upload": ""
+   }
+  },
+  {
+   "id": 2,
+   "type": "LoadAudio",
+   "pos": [
+    40,
+    250
+   ],
+   "size": [
+    282.798828125,
+    136
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "audio",
+     "name": "audio",
+     "type": "COMBO",
+     "widget": {
+      "name": "audio"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "audioUI",
+     "name": "audioUI",
+     "type": "AUDIO_UI",
+     "widget": {
+      "name": "audioUI"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "choose file to upload",
+     "name": "upload",
+     "type": "AUDIOUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "AUDIO",
+     "name": "AUDIO",
+     "type": "AUDIO",
+     "links": [
+      2
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadAudio"
+   },
+   "widgets_values": [
+    "brann_voice_ref.wav",
+    ""
+   ],
+   "widgets_values_named": {
+    "audio": "brann_voice_ref.wav",
+    "upload": ""
+   }
+  },
+  {
+   "id": 3,
+   "type": "LoadAudio",
+   "pos": [
+    40,
+    460
+   ],
+   "size": [
+    282.798828125,
+    136
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "audio",
+     "name": "audio",
+     "type": "COMBO",
+     "widget": {
+      "name": "audio"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "audioUI",
+     "name": "audioUI",
+     "type": "AUDIO_UI",
+     "widget": {
+      "name": "audioUI"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "choose file to upload",
+     "name": "upload",
+     "type": "AUDIOUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "AUDIO",
+     "name": "AUDIO",
+     "type": "AUDIO",
+     "links": [
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadAudio"
+   },
+   "widgets_values": [
+    "liesl_voice_ref.wav",
+    ""
+   ],
+   "widgets_values_named": {
+    "audio": "liesl_voice_ref.wav",
+    "upload": ""
+   }
+  },
+  {
+   "id": 4,
+   "type": "LoadAudio",
+   "pos": [
+    40,
+    700
+   ],
+   "size": [
+    282.798828125,
+    136
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "audio",
+     "name": "audio",
+     "type": "COMBO",
+     "widget": {
+      "name": "audio"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "audioUI",
+     "name": "audioUI",
+     "type": "AUDIO_UI",
+     "widget": {
+      "name": "audioUI"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "choose file to upload",
+     "name": "upload",
+     "type": "AUDIOUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "AUDIO",
+     "name": "AUDIO",
+     "type": "AUDIO",
+     "links": [
+      5
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadAudio"
+   },
+   "widgets_values": [
+    "short03_gate_price_v4.wav",
+    ""
+   ],
+   "widgets_values_named": {
+    "audio": "short03_gate_price_v4.wav",
+    "upload": ""
+   }
+  },
+  {
+   "id": 5,
+   "type": "AudioCPPReferenceSpeakers",
+   "pos": [
+    400,
+    140
+   ],
+   "size": [
+    400,
+    220
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "audio0",
+     "name": "clips.audio0",
+     "type": "AUDIO",
+     "link": 1
+    },
+    {
+     "localized_name": "audio1",
+     "name": "clips.audio1",
+     "shape": 7,
+     "type": "AUDIO",
+     "link": 2
+    },
+    {
+     "localized_name": "audio2",
+     "name": "clips.audio2",
+     "shape": 7,
+     "type": "AUDIO",
+     "link": 3
+    },
+    {
+     "localized_name": "audio3",
+     "name": "clips.audio3",
+     "shape": 7,
+     "type": "AUDIO",
+     "link": null
+    },
+    {
+     "localized_name": "names",
+     "name": "names",
+     "type": "STRING",
+     "widget": {
+      "name": "names"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "speakers",
+     "name": "speakers",
+     "type": "AUDIOCPP_SPEAKERS",
+     "links": [
+      6
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "AudioCPPReferenceSpeakers"
+   },
+   "widgets_values": [
+    "Maren\nBrann\nLiesl"
+   ],
+   "widgets_values_named": {
+    "names": "Maren\nBrann\nLiesl"
+   }
+  },
+  {
+   "id": 6,
+   "type": "AudioCPPLocalServer",
+   "pos": [
+    400,
+    470
+   ],
+   "size": [
+    406.956640625,
+    178
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "COMBO",
+     "widget": {
+      "name": "model"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "port",
+     "name": "port",
+     "type": "INT",
+     "widget": {
+      "name": "port"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "gpu",
+     "name": "gpu",
+     "type": "STRING",
+     "widget": {
+      "name": "gpu"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "memory",
+     "name": "memory",
+     "type": "COMBO",
+     "widget": {
+      "name": "memory"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "idle_unload_seconds",
+     "name": "idle_unload_seconds",
+     "type": "INT",
+     "widget": {
+      "name": "idle_unload_seconds"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "timeout",
+     "name": "timeout",
+     "type": "FLOAT",
+     "widget": {
+      "name": "timeout"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "server",
+     "name": "server",
+     "type": "AUDIOCPP_SERVER",
+     "links": [
+      4
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "AudioCPPLocalServer"
+   },
+   "widgets_values": [
+    "nemotron/nemotron-transcribe-30b-a4b-experts-Q4_K_S.gguf",
+    8090,
+    "",
+    "all on GPU",
+    300,
+    600
+   ],
+   "widgets_values_named": {
+    "model": "nemotron/nemotron-transcribe-30b-a4b-experts-Q4_K_S.gguf",
+    "port": 8090,
+    "gpu": "",
+    "memory": "all on GPU",
+    "idle_unload_seconds": 300,
+    "timeout": 600
+   }
+  },
+  {
+   "id": 7,
+   "type": "AudioCPPNemotronTranscribe",
+   "pos": [
+    850,
+    260
+   ],
+   "size": [
+    400,
+    340
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "server",
+     "name": "server",
+     "type": "AUDIOCPP_SERVER",
+     "link": 4
+    },
+    {
+     "localized_name": "audio",
+     "name": "audio",
+     "type": "AUDIO",
+     "link": 5
+    },
+    {
+     "localized_name": "speakers",
+     "name": "speakers",
+     "shape": 7,
+     "type": "AUDIOCPP_SPEAKERS",
+     "link": 6
+    },
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "STRING",
+     "widget": {
+      "name": "model"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "language",
+     "name": "language",
+     "type": "STRING",
+     "widget": {
+      "name": "language"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "options",
+     "name": "options",
+     "type": "STRING",
+     "widget": {
+      "name": "options"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "text",
+     "name": "text",
+     "type": "STRING",
+     "links": [
+      8
+     ]
+    },
+    {
+     "localized_name": "details",
+     "name": "details",
+     "type": "STRING",
+     "links": [
+      7
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "AudioCPPNemotronTranscribe"
+   },
+   "widgets_values": [
+    "",
+    "en",
+    ""
+   ],
+   "widgets_values_named": {
+    "model": "",
+    "language": "en",
+    "options": ""
+   }
+  },
+  {
+   "id": 8,
+   "type": "AudioCPPH3VoiceQA",
+   "pos": [
+    1300,
+    60
+   ],
+   "size": [
+    560,
+    600
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "details",
+     "name": "details",
+     "type": "STRING",
+     "link": 7
+    },
+    {
+     "localized_name": "prompt",
+     "name": "prompt",
+     "type": "STRING",
+     "widget": {
+      "name": "prompt"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "cast",
+     "name": "cast",
+     "type": "STRING",
+     "widget": {
+      "name": "cast"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "summary",
+     "name": "summary",
+     "type": "STRING",
+     "links": [
+      9
+     ]
+    },
+    {
+     "localized_name": "report",
+     "name": "report",
+     "type": "STRING",
+     "links": null
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "AudioCPPH3VoiceQA"
+   },
+   "widgets_values": [
+    "subject_definitions:\n<Subject 1> is Maren, the young swordswoman.\n<Subject 2> is Brann, the old headman.\n<Subject 3> is Liesl, the young village mother.\n<Audio 1> is the voice-timbre reference for <Subject 2> (S1).\n<Audio 2> is the voice-timbre reference for <Subject 1> (S2).\n<Audio 3> is the voice-timbre reference for <Subject 3> (S3).\n\ndetailed_description:\n2D cel-shaded dark fantasy seinen anime, cold desaturated colours, dusk light, falling snow.\n[Shot 1] <Subject 1> walks slowly along the snowy road toward the closed arched gate. In the gatehouse's upper window a frightened woman pulls the wooden shutter shut. Nobody speaks.\n[Shot 2] At 00:04.480, <Subject 2> (S1) bows too low and holds out a small leather pouch toward <Subject 1>, who stands perfectly still. <Subject 2> (S1), with the thin trembling voice of <Audio 1>, says: <d>[English] The price, as agreed... please.</d> <Subject 1> says nothing.\n[Shot 3] At 00:07.552, an extreme close-up of <Subject 1>'s eyes; her irises flicker to gold. <Subject 1> (S2), with the low flat voice of <Audio 2>, says quietly: <d>[English] It's you.</d> A held silence after the line.\n[Shot 4] At 00:10.624, the aftermath of one sword cut: a black smoke demon erupts from Brann's coat. Nobody speaks.\n[Shot 5] At 00:15.104, <Subject 3> recoils, pulling her small son behind her skirt. <Subject 3> (S3), with the hushed frightened voice of <Audio 3>, whispers to the boy: <d>[English] Don't meet her eyes.</d>\n[Shot 6] At 00:18.176, <Subject 1> walks away through the open gate; the gate doors slam shut behind her. Nobody speaks.\n\noverall_soundscape: a cold wind, boots in snow, a shutter, coins, a gate slam.\nnon_diegetic_music: N/A\n",
+    "S1: Brann\nS2: Maren\nS3: Liesl"
+   ],
+   "widgets_values_named": {
+    "prompt": "subject_definitions:\n<Subject 1> is Maren, the young swordswoman.\n<Subject 2> is Brann, the old headman.\n<Subject 3> is Liesl, the young village mother.\n<Audio 1> is the voice-timbre reference for <Subject 2> (S1).\n<Audio 2> is the voice-timbre reference for <Subject 1> (S2).\n<Audio 3> is the voice-timbre reference for <Subject 3> (S3).\n\ndetailed_description:\n2D cel-shaded dark fantasy seinen anime, cold desaturated colours, dusk light, falling snow.\n[Shot 1] <Subject 1> walks slowly along the snowy road toward the closed arched gate. In the gatehouse's upper window a frightened woman pulls the wooden shutter shut. Nobody speaks.\n[Shot 2] At 00:04.480, <Subject 2> (S1) bows too low and holds out a small leather pouch toward <Subject 1>, who stands perfectly still. <Subject 2> (S1), with the thin trembling voice of <Audio 1>, says: <d>[English] The price, as agreed... please.</d> <Subject 1> says nothing.\n[Shot 3] At 00:07.552, an extreme close-up of <Subject 1>'s eyes; her irises flicker to gold. <Subject 1> (S2), with the low flat voice of <Audio 2>, says quietly: <d>[English] It's you.</d> A held silence after the line.\n[Shot 4] At 00:10.624, the aftermath of one sword cut: a black smoke demon erupts from Brann's coat. Nobody speaks.\n[Shot 5] At 00:15.104, <Subject 3> recoils, pulling her small son behind her skirt. <Subject 3> (S3), with the hushed frightened voice of <Audio 3>, whispers to the boy: <d>[English] Don't meet her eyes.</d>\n[Shot 6] At 00:18.176, <Subject 1> walks away through the open gate; the gate doors slam shut behind her. Nobody speaks.\n\noverall_soundscape: a cold wind, boots in snow, a shutter, coins, a gate slam.\nnon_diegetic_music: N/A\n",
+    "cast": "S1: Brann\nS2: Maren\nS3: Liesl"
+   }
+  },
+  {
+   "id": 9,
+   "type": "PreviewAny",
+   "pos": [
+    850,
+    660
+   ],
+   "size": [
+    400,
+    260
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "source",
+     "name": "source",
+     "type": "*",
+     "link": 8
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "STRING",
+     "name": "STRING",
+     "type": "STRING",
+     "links": null
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "widgets_values_named": {}
+  },
+  {
+   "id": 10,
+   "type": "PreviewAny",
+   "pos": [
+    1300,
+    700
+   ],
+   "size": [
+    560,
+    300
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "source",
+     "name": "source",
+     "type": "*",
+     "link": 9
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "STRING",
+     "name": "STRING",
+     "type": "STRING",
+     "links": null
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "widgets_values_named": {}
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   0,
+   5,
+   0,
+   "AUDIO"
+  ],
+  [
+   2,
+   2,
+   0,
+   5,
+   1,
+   "AUDIO"
+  ],
+  [
+   3,
+   3,
+   0,
+   5,
+   2,
+   "AUDIO"
+  ],
+  [
+   4,
+   6,
+   0,
+   7,
+   0,
+   "AUDIOCPP_SERVER"
+  ],
+  [
+   5,
+   4,
+   0,
+   7,
+   1,
+   "AUDIO"
+  ],
+  [
+   6,
+   5,
+   0,
+   7,
+   2,
+   "AUDIOCPP_SPEAKERS"
+  ],
+  [
+   7,
+   7,
+   1,
+   8,
+   0,
+   "STRING"
+  ],
+  [
+   8,
+   7,
+   0,
+   9,
+   0,
+   "STRING"
+  ],
+  [
+   9,
+   8,
+   0,
+   10,
+   0,
+   "STRING"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.7,
+   "offset": [
+    80,
+    60
+   ]
+  }
+ },
+ "version": 0.4
+}

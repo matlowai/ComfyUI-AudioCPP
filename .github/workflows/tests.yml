@@ -74,10 +74,10 @@ jobs:
               Start-Sleep 2
               try { $info = Invoke-RestMethod http://127.0.0.1:8188/object_info -TimeoutSec 10 } catch {}
             }
-            foreach ($node in "AudioCPPServer", "AudioCPPDoctor", "AudioCPPTextToSpeech") {
+            foreach ($node in "AudioCPPServer", "AudioCPPDoctor", "AudioCPPTextToSpeech", "AudioCPPLocalServer", "AudioCPPReferenceSpeakers", "AudioCPPNemotronTranscribe", "AudioCPPH3VoiceQA", "AudioCPPUnload") {
               if (-not $info -or -not $info.$node) { Get-Content $log, "$log.err"; throw "$node is not registered" }
             }
-            "all 3 nodes registered"
+            "all 8 nodes registered"
           } finally {
             Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
           }

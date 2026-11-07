@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-audiocpp"
-description = "ComfyUI nodes for audio.cpp: text to speech from an audiocpp_server running on this computer."
+description = "ComfyUI nodes for audio.cpp: text to speech, and Nemotron Transcribe with named speakers and an H3 voice check, from an audiocpp_server on this computer."
 version = "0.1.0"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
