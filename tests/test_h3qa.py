@@ -65,3 +65,18 @@ def test_a_line_said_twice_is_matched_in_its_shot():
     report = h3qa.check(PROMPT, heard, 11.0, NAMES, CAST)
     assert report["lines"][1]["start"] == 8.0 and not report["lines"][1]["wrong_time"]
     assert [u["start"] for u in report["unscripted"]] == [1.0]
+
+
+def test_a_voice_scorer_decides_the_voice():
+    heard = words("the price as agreed please", 4.5, "ambiguous: Brann | Kuroe") + words("its you", 9.0, "ambiguous: Maren | Liesl")
+    names = ["Maren", "Brann", "Liesl"]
+
+    def voice(start, end):
+        return {"Maren": 0.30, "Brann": 0.65, "Liesl": 0.10} if start < 8 else {"Maren": 0.40, "Brann": 0.10, "Liesl": 0.36}
+
+    report = h3qa.check(PROMPT, heard, 11.0, names, CAST, voice)
+    first, second = report["lines"]
+    assert (first["verdict"], first["voice_match"], first["voice_margin"]) == ("ok", "Brann", 0.35)
+    assert (second["verdict"], second["voice_match"]) == ("unsure_voice", "Maren")  # 0.04 < VOICE_MARGIN
+    report = h3qa.check(PROMPT, heard, 11.0, names, {"S1": "Maren", "S2": "Maren"}, voice)
+    assert report["lines"][0]["verdict"] == "wrong_voice"

@@ -22,7 +22,8 @@ workflow). Nothing downloads models; the scripts in `scripts/` do that when you 
 | **audio.cpp Local Server (Nemotron Transcribe)** | Starts `audiocpp_server` for Nemotron Transcribe on 127.0.0.1, on a GPU chosen by index or UUID (default: ComfyUI's), all on GPU or with the experts in RAM, with idle unload. Keeps the running one when the settings are unchanged. |
 | **audio.cpp Reference Speakers** | Named voice clips (one name per line, one `AUDIO` per name, up to 7). |
 | **audio.cpp Nemotron Transcribe** | `POST /v1/tasks/run` with diarization and word timestamps. Returns `text` (`[Name] words ...`) and `details` (JSON: every word with start, end and speaker, the speaker turns, which reference claimed which speaker, and the server's whole result). |
-| **audio.cpp H3 Voice QA** | Reads an H3 prompt (`[Shot N] At MM:SS.mmm`, `(S1)`, `<d>[English] ...</d>`, `<Audio N>`), finds each line in the words and reports its speaker and time against its shot. Returns a `summary` for people and a `report` (JSON). |
+| **audio.cpp H3 Voice QA** | Reads an H3 prompt (`[Shot N] At MM:SS.mmm`, `(S1)`, `<d>[English] ...</d>`, `<Audio N>`), finds each line in the words and reports its speaker and time against its shot. With a voice model, the take and the Reference Speakers, each line's own span is scored against every reference. Returns a `summary` for people and a `report` (JSON). |
+| **audio.cpp Voice Model (WavLM-large ECAPA)** | Loads UniSpeech's WavLM-large + ECAPA-TDNN speaker-verification weights (safetensors) for H3 Voice QA. Runs in ComfyUI, not in the server. |
 | **audio.cpp Unload** | `POST /v1/tasks/unload_models` or `unload_all_models`; optionally stops the server the Local Server node started. |
 
 ## Install
@@ -132,6 +133,13 @@ plus the licence files. GGUF files only. They are the community conversion by
 [Jmica](https://huggingface.co/Jmica/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-GGUF) for audio.cpp; see audio.cpp's
 [model page](https://github.com/0xShug0/audio.cpp/blob/main/docs/models/nemotron_transcribe.md).
 
+Then the voice model that tells apart similar voices (1.3 GB, safetensors only; the pack has its own implementation of the
+model, so the repository's Python file is not downloaded):
+
+```bash
+scripts/download_voice_model.sh ComfyUI/models/audio_encoders/wavlm_large_ecapa_sv
+```
+
 ### 3. Tell ComfyUI where the server is, and start it
 
 ```bash
@@ -147,8 +155,9 @@ that one with **audio.cpp Server** instead. Its config and log are in ComfyUI's 
 ### 4. Run the example
 
 Open `example_workflows/nemotron_h3_voice_qa.json`: three **Load Audio** nodes with each character's voice clip, one with the
-take, **Reference Speakers** (`Maren`, `Brann`, `Liesl`), **Local Server**, **Nemotron Transcribe**, **H3 Voice QA** with the
-take's prompt and `S1: Brann` / `S2: Maren` / `S3: Liesl`, and two **Preview as Text** nodes. Put your own clips in
+take, **Reference Speakers** (`Maren`, `Brann`, `Liesl`), **Local Server**, **Nemotron Transcribe**, **Voice Model**, **H3 Voice
+QA** with the take's prompt and `S1: Brann` / `S2: Maren` / `S3: Liesl` (and the take, the speakers and the voice model connected),
+and two **Preview as Text** nodes. Put your own clips in
 `ComfyUI/input` and pick them. The first run loads the model (15-20 s); later runs take well under a second for a short take.
 
 To use a server you run yourself instead, connect **audio.cpp Server** (the port) to Nemotron Transcribe. A config for it:
@@ -186,11 +195,17 @@ speaker by the reference it was heard in. A speaker heard in two references is *
 voice no reference matches is **unassigned** (`unassigned (speaker_2)`); names are never guessed. Times in `details` are on the
 checked audio's own clock.
 
-**Know the limit.** On our H3 test set (five generated anime voices), the diarizer separated men from women every time but put
-voices of the same sex and age in one speaker: Maren, Liesl and Hiyori (three young women) always came out as one speaker, as did
-two old men. Longer or repeated reference clips, wider gaps and larger speaker-cache settings did not change it. So a wrong voice
-of the other sex is caught, while a swap between two similar voices comes back `ambiguous` (H3 Voice QA: `unsure_voice`), not
-`ok`. Pair it with a speaker-embedding check on the line's time span when similar voices matter.
+**Know the limit, and use the voice model.** On our H3 test set (five generated anime voices), Nemotron's diarizer separated men
+from women every time but put voices of the same sex and age in one speaker: Maren, Liesl and Hiyori (three young women) always
+came out as one speaker, as did two old men. Longer or repeated reference clips, wider gaps and speaker-cache settings did not
+change it, nor did audio.cpp's dedicated diarizers (`nemotron_3_diar`, `sortformer_diar`). So the diarizer's names catch a wrong
+voice of the other sex, while a swap between two similar voices comes back `ambiguous`.
+
+Connect **Voice Model** (and the take and the Reference Speakers) to **H3 Voice QA** to settle those: it embeds each line's own
+span with WavLM-large + ECAPA-TDNN and picks the closest reference; a line is `unsure_voice` when the best reference beats the
+second by less than 0.08. On the same 12 takes it named all 12 speakers and caught all 48 claimed-speaker swaps (all 20 between
+same-sex voices) with no false alarms; the smallest margin was 0.12, on a 0.6 s line. The smaller WavLM-base-plus-sv named 10 of
+12, with 3 correct takes under its own 0.03 margin. Give it two or more references.
 
 ### H3 Voice QA verdicts
 
@@ -202,7 +217,7 @@ lines are followed). Shot times are cut times, so a line passes timing when it s
 | --- | --- |
 | `ok` | the line's words were heard, in the expected reference's voice |
 | `wrong_voice` | heard in another reference's voice, or a voice no reference matches |
-| `unsure_voice` | the diarizer heard the expected voice and another reference as one speaker |
+| `unsure_voice` | without a voice model: the diarizer heard the expected voice and another reference as one speaker; with one: the best reference beat the second by less than 0.08 |
 | `no_reference` | no reference clip for the line's speaker |
 | `missing` | the line was not heard |
 | `wrong_time` (flag) | the line starts outside its shot; `drift_seconds` says by how much |
@@ -216,11 +231,14 @@ AUDIOCPP_COMFYUI_DIR=/path/to/ComfyUI python -m pytest
 
 The tests use a stand-in HTTP server with the server's response shapes. With `AUDIOCPP_TEST_PORT` set to the port of a running
 `audiocpp_server` that has a PocketTTS entry `pocket-tts`, they also run against it. `tests/test_speakers.py` and
-`tests/test_h3qa.py` cover the naming and the prompt check without a server.
+`tests/test_h3qa.py` cover the naming and the prompt check without a server; `AUDIOCPP_TEST_VOICE_MODEL` (the voice model's
+safetensors path) also loads and runs the voice model.
 
 ## License
 
 Apache-2.0, like audio.cpp. The models keep their own licenses; see
 [docs/model_licenses.md](https://github.com/0xShug0/audio.cpp/blob/main/docs/model_licenses.md). The Nemotron 3.5 Transcribe
 weights are under [OpenMDW-1.1](https://openmdw.ai/license/1-1/) with the notices in the model repository
-(`THIRD_PARTY_NOTICES.md`, `licenses/`), which the download script fetches beside the GGUFs.
+(`THIRD_PARTY_NOTICES.md`, `licenses/`), which the download script fetches beside the GGUFs. The voice model's weights are
+CC BY-SA 3.0 (UniSpeech's WavLM-large + ECAPA-TDNN via prj-beatrice/unispeech-wavlm-large-ecapa-tdnn-torch-native, revision
+`13ad4fcc`).

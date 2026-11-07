@@ -14,15 +14,18 @@ from comfy_api.latest import ComfyExtension, io, ui
 
 import comfy.audio
 import comfy.model_management
+import comfy.model_patcher
+import comfy.utils
 import folder_paths
 
-from . import audio, client, h3qa, local_server, speakers
+from . import audio, client, h3qa, local_server, speaker_embedding, speakers
 
 # Tasks whose models take text on POST /v1/audio/speech (task names as GET /v1/models reports them).
 SPEECH_TASKS = ("tts", "clon", "vdes")
 
 AudioCPPServerType = io.Custom("AUDIOCPP_SERVER")
 SpeakersType = io.Custom("AUDIOCPP_SPEAKERS")
+VoiceModelType = io.Custom("AUDIOCPP_VOICE_MODEL")
 # The diarizer has 8 speaker columns (pee.diar.num_speakers); one stays free for a voice that matches no reference.
 MAX_REFERENCES = 7
 
@@ -368,6 +371,11 @@ class AudioCPPH3VoiceQA(io.ComfyNode):
                 io.String.Input("cast", multiline=True, default="",
                                 tooltip="speaker ids or audio labels to reference names, one per line, e.g. S1: Maren or Audio 2: Liesl; "
                                         "not needed when the prompt names the speaker next to each line"),
+                VoiceModelType.Input("voice_model", optional=True,
+                                     tooltip="scores each line's own span against every reference (needs audio and speakers): tells "
+                                             "apart similar voices that the diarizer hears as one"),
+                io.Audio.Input("audio", optional=True, tooltip="the take that was transcribed, for voice_model"),
+                SpeakersType.Input("speakers", optional=True, tooltip="the same Reference Speakers, for voice_model (two or more)"),
             ],
             outputs=[io.String.Output(display_name="summary", tooltip="one line per scripted line and per unscripted stretch, for a person"),
                      io.String.Output(display_name="report", tooltip="JSON: counts, every line with its verdict and words, unscripted speech")],
@@ -375,12 +383,60 @@ class AudioCPPH3VoiceQA(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, details, prompt, cast) -> io.NodeOutput:
+    def execute(cls, details, prompt, cast, voice_model=None, audio=None, speakers=None) -> io.NodeOutput:
         d = json.loads(details)
         names = [s["name"] for s in d["speakers"]]
-        report = h3qa.check(prompt, d["words"], d["audio_seconds"], names, h3qa.parse_cast(cast))
+        voice = None
+        if voice_model is not None:
+            if audio is None or speakers is None or len(speakers) < 2:
+                raise ValueError("voice_model compares each line with every reference: connect the take's audio and the Reference "
+                                 "Speakers (at least two voices)")
+            voice = voice_scorer(voice_model, mono_16k(audio), speakers)
+        report = h3qa.check(prompt, d["words"], d["audio_seconds"], names, h3qa.parse_cast(cast), voice)
         summary = qa_text(report)
         return io.NodeOutput(summary, json.dumps(report, ensure_ascii=False), ui=ui.PreviewText(summary))
+
+
+def voice_scorer(voice_model, take: np.ndarray, references):
+    """(start, end) seconds -> {reference name: cosine similarity} of that span of the take, with 0.1 s on each side."""
+    comfy.model_management.load_model_gpu(voice_model)
+    net, device = voice_model.model, voice_model.load_device
+
+    def embed(samples: np.ndarray) -> torch.Tensor:
+        return torch.nn.functional.normalize(net(torch.from_numpy(samples).to(device)), dim=-1)
+
+    refs = {name: embed(clip) for name, clip in references}
+
+    def score(start: float, end: float) -> dict:
+        lo, hi = max(0, int((start - 0.1) * speakers.RATE)), int((end + 0.1) * speakers.RATE)
+        e = embed(take[lo:hi])
+        return {name: float(e @ r) for name, r in refs.items()}
+
+    return score
+
+
+class AudioCPPVoiceModelLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioCPPVoiceModelLoader",
+            display_name="audio.cpp Voice Model (WavLM-large ECAPA)",
+            category="audio/audio.cpp",
+            description=("Loads UniSpeech's WavLM-large + ECAPA-TDNN speaker-verification weights (one safetensors file in "
+                         "models/audio_encoders) for H3 Voice QA's voice_model."),
+            inputs=[io.Combo.Input("model_name", options=folder_paths.get_filename_list("audio_encoders"))],
+            outputs=[VoiceModelType.Output()],
+        )
+
+    @classmethod
+    def execute(cls, model_name) -> io.NodeOutput:
+        sd = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("audio_encoders", model_name), safe_load=True)
+        if not speaker_embedding.is_wavlm_large_ecapa(sd):
+            raise ValueError(f"{model_name} is not the WavLM-large + ECAPA-TDNN speaker model (no ecapa.* weights); see the README")
+        net = speaker_embedding.WavLMLargeECAPA()
+        net.load_state_dict(sd)
+        return io.NodeOutput(comfy.model_patcher.ModelPatcher(net.eval(), load_device=comfy.model_management.get_torch_device(),
+                                                              offload_device=comfy.model_management.unet_offload_device()))
 
 
 def qa_text(report: dict) -> str:
@@ -391,10 +447,12 @@ def qa_text(report: dict) -> str:
         when = f"{r['start']:.2f}-{r['end']:.2f} s" if "start" in r else "not heard"
         window = r["shot_window"]
         timing = f", wrong time ({r['drift_seconds']:+.2f} s outside shot {r['shot']}: {window[0]:.2f}-{window[1]:.2f} s)" if r.get("wrong_time") else ""
+        heard = f"{r['voice_match']} by voice (margin {r['voice_margin']:.2f})" if "voice_match" in r else r.get("detected_speaker")
         lines.append(f"{r['verdict'].upper()}: shot {r['shot']} \"{r['text']}\" expected {r['expected_speaker']}, "
-                     f"heard {r.get('detected_speaker')} at {when}{timing}")
+                     f"heard {heard} at {when}{timing}")
     for u in report["unscripted"]:
-        lines.append(f"UNSCRIPTED: \"{u['text']}\" by {u['speaker']} at {u['start']:.2f}-{u['end']:.2f} s")
+        who = f"{u['voice_match']} by voice (margin {u['voice_margin']:.2f})" if "voice_match" in u else u["speaker"]
+        lines.append(f"UNSCRIPTED: \"{u['text']}\" by {who} at {u['start']:.2f}-{u['end']:.2f} s")
     return "\n".join(lines)
 
 
@@ -432,7 +490,7 @@ class AudioCPPUnload(io.ComfyNode):
 class AudioCPPExtension(ComfyExtension):
     async def get_node_list(self):
         return [AudioCPPServer, AudioCPPDoctor, AudioCPPTextToSpeech, AudioCPPLocalServer, AudioCPPReferenceSpeakers,
-                AudioCPPNemotronTranscribe, AudioCPPH3VoiceQA, AudioCPPUnload]
+                AudioCPPNemotronTranscribe, AudioCPPH3VoiceQA, AudioCPPVoiceModelLoader, AudioCPPUnload]
 
 
 async def comfy_entrypoint() -> AudioCPPExtension:

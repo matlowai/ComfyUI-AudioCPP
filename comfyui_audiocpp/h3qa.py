@@ -22,6 +22,9 @@ AUDIO = re.compile(r"<Audio (\d+)>")
 AUDIO_DEF = re.compile(r"<Audio (\d+)> is the voice[- ]timbre reference for [^.\n]*?\((S\d+)\)")
 # A line counts as found when its words match the transcript at least this well (difflib ratio on normalised text).
 MATCH_RATIO = 0.75
+# With a speaker-embedding scorer, a line's voice is unsure when the best reference beats the second by less than this
+# (WavLM-large + ECAPA cosine). On our H3 cast the smallest correct margin was 0.12 (a 0.6 s line).
+VOICE_MARGIN = 0.08
 # Seconds a line may start before its shot's cut before it is reported as mistimed; it must start this long before the next cut.
 TIMING_SLACK = 0.25
 
@@ -98,6 +101,13 @@ def _match(line_words, norm, words, used, window):
     return r, i, j
 
 
+def _voice(voice, start, end):
+    scores = voice(start, end)
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    margin = scores[ranked[0]] - scores[ranked[1]] if len(ranked) > 1 else 1.0
+    return {"voice_match": ranked[0], "voice_margin": round(margin, 4), "voice_scores": {n: round(v, 4) for n, v in scores.items()}}
+
+
 def _speaker(words):
     weight = {}
     for w in words:
@@ -105,12 +115,16 @@ def _speaker(words):
     return max(weight, key=weight.get) if weight else None
 
 
-def check(prompt: str, words: list[dict], duration: float, names: list[str], cast: dict[str, str] | None = None) -> dict:
+def check(prompt: str, words: list[dict], duration: float, names: list[str], cast: dict[str, str] | None = None, voice=None) -> dict:
     """Compare a prompt's lines with transcribed words ([{"word", "start", "end", "speaker"}] on the take's clock).
 
     Returns {"lines": [...], "unscripted": [...], "shots": [...], "summary": {...}}. Verdicts per line: ok, wrong_voice,
-    unsure_voice (the diarizer put the expected voice and another reference in one speaker), no_reference (no reference
-    for the expected speaker), missing (the line was not heard) and, separately, wrong_time with the drift in seconds.
+    unsure_voice, no_reference (no reference for the expected speaker), missing (the line was not heard) and, separately,
+    wrong_time with the drift in seconds.
+
+    Without `voice`, a line's voice is the diarizer's speaker; unsure_voice means it heard the expected voice and another
+    reference as one speaker. `voice(start, end)` -> {reference name: similarity} scores the line's own span against every
+    reference instead: the best one is the voice, and unsure_voice means it beat the second by less than VOICE_MARGIN.
     """
     shots, lines = parse_prompt(prompt, names, cast or {})
     norm = [(normalise(w["word"]) or [""])[0] for w in words]
@@ -135,8 +149,12 @@ def check(prompt: str, words: list[dict], duration: float, names: list[str], cas
         row.update({"heard": " ".join(w["word"] for w in heard), "match_ratio": round(ratio, 3), "start": start, "end": end,
                     "detected_speaker": detected, "words": heard})
         expected = line["speaker"]
+        if voice is not None:
+            row.update(_voice(voice, start, end))
         if expected is None or expected not in names:
             row["verdict"] = "no_reference"
+        elif voice is not None:
+            row["verdict"] = "unsure_voice" if row["voice_margin"] < VOICE_MARGIN else "ok" if row["voice_match"] == expected else "wrong_voice"
         elif detected == expected:
             row["verdict"] = "ok"
         elif detected and detected.startswith("ambiguous: ") and expected in detected.removeprefix("ambiguous: ").split(" | "):
@@ -158,7 +176,7 @@ def check(prompt: str, words: list[dict], duration: float, names: list[str], cas
             run.append(w)
         elif run:
             unscripted.append({"text": " ".join(x["word"] for x in run), "start": run[0]["start"], "end": run[-1]["end"],
-                               "speaker": _speaker(run), "words": run})
+                               "speaker": _speaker(run), "words": run, **(_voice(voice, run[0]["start"], run[-1]["end"]) if voice else {})})
             run = []
     summary = {v: sum(r["verdict"] == v for r in rows) for v in ("ok", "wrong_voice", "unsure_voice", "no_reference", "missing")}
     summary["wrong_time"] = sum(bool(r.get("wrong_time")) for r in rows)

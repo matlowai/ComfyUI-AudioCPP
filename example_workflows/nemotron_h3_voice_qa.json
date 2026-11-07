@@ -1,8 +1,8 @@
 {
- "id": "6785d552-f407-4dc8-b22a-af7177620127",
+ "id": "d3a5421c-9f72-4424-b65b-bb41052e75ba",
  "revision": 0,
- "last_node_id": 10,
- "last_link_id": 9,
+ "last_node_id": 11,
+ "last_link_id": 12,
  "nodes": [
   {
    "id": 1,
@@ -248,7 +248,8 @@
      "name": "AUDIO",
      "type": "AUDIO",
      "links": [
-      5
+      5,
+      9
      ]
     }
    ],
@@ -276,7 +277,7 @@
     220
    ],
    "flags": {},
-   "order": 5,
+   "order": 6,
    "mode": 0,
    "inputs": [
     {
@@ -322,7 +323,8 @@
      "name": "speakers",
      "type": "AUDIOCPP_SPEAKERS",
      "links": [
-      6
+      6,
+      10
      ]
     }
    ],
@@ -441,14 +443,14 @@
    "type": "AudioCPPNemotronTranscribe",
    "pos": [
     850,
-    260
+    230
    ],
    "size": [
     400,
     340
    ],
    "flags": {},
-   "order": 6,
+   "order": 7,
    "mode": 0,
    "inputs": [
     {
@@ -504,7 +506,7 @@
      "name": "text",
      "type": "STRING",
      "links": [
-      8
+      11
      ]
     },
     {
@@ -542,7 +544,7 @@
     600
    ],
    "flags": {},
-   "order": 8,
+   "order": 9,
    "mode": 0,
    "inputs": [
     {
@@ -550,6 +552,27 @@
      "name": "details",
      "type": "STRING",
      "link": 7
+    },
+    {
+     "localized_name": "voice_model",
+     "name": "voice_model",
+     "shape": 7,
+     "type": "AUDIOCPP_VOICE_MODEL",
+     "link": 8
+    },
+    {
+     "localized_name": "audio",
+     "name": "audio",
+     "shape": 7,
+     "type": "AUDIO",
+     "link": 9
+    },
+    {
+     "localized_name": "speakers",
+     "name": "speakers",
+     "shape": 7,
+     "type": "AUDIOCPP_SPEAKERS",
+     "link": 10
     },
     {
      "localized_name": "prompt",
@@ -576,7 +599,7 @@
      "name": "summary",
      "type": "STRING",
      "links": [
-      9
+      12
      ]
     },
     {
@@ -610,14 +633,14 @@
     260
    ],
    "flags": {},
-   "order": 7,
+   "order": 8,
    "mode": 0,
    "inputs": [
     {
      "localized_name": "source",
      "name": "source",
      "type": "*",
-     "link": 8
+     "link": 11
     }
    ],
    "outputs": [
@@ -639,21 +662,21 @@
    "type": "PreviewAny",
    "pos": [
     1300,
-    700
+    760
    ],
    "size": [
     560,
     300
    ],
    "flags": {},
-   "order": 9,
+   "order": 10,
    "mode": 0,
    "inputs": [
     {
      "localized_name": "source",
      "name": "source",
      "type": "*",
-     "link": 9
+     "link": 12
     }
    ],
    "outputs": [
@@ -669,6 +692,51 @@
    },
    "widgets_values": [],
    "widgets_values_named": {}
+  },
+  {
+   "id": 11,
+   "type": "AudioCPPVoiceModelLoader",
+   "pos": [
+    850,
+    80
+   ],
+   "size": [
+    403.9078125,
+    58
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model_name",
+     "name": "model_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "model_name"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "AUDIOCPP_VOICE_MODEL",
+     "name": "AUDIOCPP_VOICE_MODEL",
+     "type": "AUDIOCPP_VOICE_MODEL",
+     "links": [
+      8
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "AudioCPPVoiceModelLoader"
+   },
+   "widgets_values": [
+    "wavlm_large_ecapa_sv/model.safetensors"
+   ],
+   "widgets_values_named": {
+    "model_name": "wavlm_large_ecapa_sv/model.safetensors"
+   }
   }
  ],
  "links": [
@@ -730,6 +798,30 @@
   ],
   [
    8,
+   11,
+   0,
+   8,
+   1,
+   "AUDIOCPP_VOICE_MODEL"
+  ],
+  [
+   9,
+   4,
+   0,
+   8,
+   2,
+   "AUDIO"
+  ],
+  [
+   10,
+   5,
+   0,
+   8,
+   3,
+   "AUDIOCPP_SPEAKERS"
+  ],
+  [
+   11,
    7,
    0,
    9,
@@ -737,7 +829,7 @@
    "STRING"
   ],
   [
-   9,
+   12,
    8,
    0,
    10,

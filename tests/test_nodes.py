@@ -110,7 +110,7 @@ NEMO = {"id": "nemo-c", "object": "model", "family": "nemotron_transcribe", "tas
 
 def test_new_schema_ids(nodes):
     for cls in (nodes.AudioCPPLocalServer, nodes.AudioCPPReferenceSpeakers, nodes.AudioCPPNemotronTranscribe, nodes.AudioCPPH3VoiceQA,
-                nodes.AudioCPPUnload):
+                nodes.AudioCPPVoiceModelLoader, nodes.AudioCPPUnload):
         assert cls.define_schema().node_id == cls.__name__
 
 
@@ -158,3 +158,9 @@ def test_unload(nodes, fake):
     assert report == 'unloaded: {"unloaded": ["asr-b"]}'
     report, = result(nodes.AudioCPPUnload.execute(client.Server(fake.port, 10), "nope", True))
     assert "not_found" in report and f"no server started by this ComfyUI on port {fake.port}" in report
+
+
+def test_voice_model_needs_the_take_and_two_references(nodes):
+    details = json.dumps({"speakers": [{"name": "Maren"}], "words": [], "audio_seconds": 1.0})
+    with pytest.raises(ValueError, match="at least two voices"):
+        nodes.AudioCPPH3VoiceQA.execute(details, "", "", voice_model=object())
