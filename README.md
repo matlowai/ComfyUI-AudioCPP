@@ -140,7 +140,9 @@ python main.py
 ```
 
 The **Local Server** node lists the decoder GGUFs under `models/audio_encoders` (not the `mmproj-` file). Without
-`AUDIOCPP_SERVER`, it looks for `audiocpp_server` on `PATH`.
+`AUDIOCPP_SERVER`, it looks for `audiocpp_server` on `PATH`. The server it starts stops when ComfyUI exits (on Linux also when
+ComfyUI is killed), or with **Unload** and `stop_server`. It refuses a port where another server already answers; connect to
+that one with **audio.cpp Server** instead. Its config and log are in ComfyUI's `temp/audiocpp/`.
 
 ### 4. Run the example
 
