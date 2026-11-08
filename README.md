@@ -106,6 +106,8 @@ Tested on Linux with an RTX 5090, CUDA 13.2, GCC 13 and CMake 3.28, audio.cpp
 [`d2b2076e`](https://github.com/0xShug0/audio.cpp/commit/d2b2076e47affef4973a9f69433750b339be7d8d) and the GGUF repository at
 revision [`d2affa84`](https://huggingface.co/Jmica/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-GGUF/tree/d2affa8419718ffe0917cb69dc6bc693084497f5).
 
+The measurements, failures and reproduction notes behind these nodes are in [docs/nemotron-study.md](docs/nemotron-study.md).
+
 ### 1. Build audio.cpp
 
 Needs git, CMake (3.24 or newer for `CUDA_ARCH=native`), GCC 13 or newer and the CUDA Toolkit 12 or 13. From this folder:
